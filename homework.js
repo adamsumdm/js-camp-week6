@@ -8,8 +8,11 @@
 require("dotenv").config({ path: ".env" });
 
 // API 設定（從 .env 讀取）
-const API_PATH = process.env.API_PATH;
 const BASE_URL = "https://livejs-api.hexschool.io";
+const API_MID_STR = "/api/livejs/v1/customer/";
+const API_PATH = process.env.API_PATH;
+const API_FULL_STR = BASE_URL+API_MID_STR+API_PATH;
+// console.log(`show api_full_str:${API_FULL_STR}`);
 const ADMIN_TOKEN = process.env.API_KEY;
 
 // ========================================
@@ -25,8 +28,11 @@ async function getProducts() {
 	// 請實作此函式
 	// 提示：
 	// 1. 使用 fetch() 發送 GET 請求
+	const response = await fetch(`${API_FULL_STR}/products`);
 	// 2. 使用 response.json() 解析回應
+	const data = await response.json();
 	// 3. 回傳 data.products
+	return data.products;
 }
 
 /**
@@ -35,6 +41,13 @@ async function getProducts() {
  */
 async function getCart() {
 	// 請實作此函式
+	const response = await fetch(`${API_FULL_STR}/carts`);
+	const data = await response.json();
+	return {
+				carts:data.carts, 
+				total:data.total, 
+				finalTotal:data.finalTotal
+			};
 }
 
 /**
@@ -45,9 +58,51 @@ async function getProductsSafe() {
 	// 請實作此函式
 	// 提示：
 	// 1. 加上 try-catch 處理錯誤
-	// 2. 檢查 response.ok 判斷是否成功
-	// 3. 成功回傳 { success: true, data: [...] }
-	// 4. 失敗回傳 { success: false, error: '錯誤訊息' }
+	// 模擬 UI 狀態：開啟載入中動畫 (Loading Spinner)
+	let isLoading = true;
+	console.log("開始連線...");
+
+	try {
+		// 【 1. Try 區塊：執行可能會出錯的程式碼 】
+		// 如果這裡發生「連線層級錯誤」(例如網路斷線)，會立刻跳到 catch
+		const response = await fetch(`${API_FULL_STR}/products`);
+
+		// 手動檢查 HTTP 狀態碼 (處理 404, 500 等非連線層級的錯誤)
+		if (!response.ok) {
+		// 這裡 throw 的錯誤，也會被下方的 catch 接住
+		throw new Error(`伺服器回應錯誤！狀態碼：${response.status}`);
+		}
+
+		// 將回應解析為 JSON 格式
+		const data = await response.json();
+		console.log("資料取得成功：", data.products);
+		return {
+				success: response.ok,
+				data: data.products
+			}
+	} catch (error) {
+		// 【 2. Catch 區塊：專門處理錯誤 】
+		// 這裡會接住「網路斷線 (TypeError)」、「CORS 錯誤」以及我們在上面手動 throw 的錯誤
+		// 通常連線層級的錯誤，error.name 會是 TypeError，或者 error.message 會包含 "Failed to fetch"
+		if (error instanceof TypeError) {
+			console.error("連線失敗：請檢查您的網路狀態，或伺服器目前無回應。");
+			return{
+				success: false,
+				data: error.message
+			}
+		} else {
+			console.error("發生錯誤：", error.message);
+			return{
+				success: false,
+				data: response.error
+			}
+		}
+	} finally {
+		// 【 3. Finally 區塊：無論成功或失敗，最後都一定會執行 】
+		// 最常見的用途就是用來「關閉載入中動畫」或「解鎖被禁用的按鈕」
+		isLoading = false;
+		console.log("連線流程結束。");
+	}
 }
 
 // ========================================
@@ -64,9 +119,25 @@ async function addToCart(productId, quantity) {
 	// 請實作此函式
 	// 提示：
 	// 1. 發送 POST 請求
+	const options = {
+		method: "POST",
+		headers: { 
+			"Content-Type":"application/json"
+		},
+		body: JSON.stringify({
+			data: {
+				productId:productId,
+				quantity: quantity
+			}
+		})
+	}
+	// fetch();
+	const response = await fetch(`${API_FULL_STR}/carts`, options);
+	const data = await response.json();
 	// 2. body 格式：{ data: { productId: "xxx", quantity: 1 } }
 	// 3. 記得設定 headers: { 'Content-Type': 'application/json' }
 	// 4. body 要用 JSON.stringify() 轉換
+	return data;
 }
 
 /**
@@ -80,6 +151,27 @@ async function updateCartItem(cartId, quantity) {
 	// 提示：
 	// 1. 發送 PATCH 請求
 	// 2. body 格式：{ data: { id: "購物車ID", quantity: 數量 } }
+		// 請實作此函式
+	// 提示：發送 DELETE 請求到 /carts/{id}
+	const updateData = {
+		data:{
+			id: cartId,
+			quantity: quantity
+		}
+	};
+
+	const options = {
+		method: 'PATCH',
+		headers: {
+    		'Content-Type': 'application/json'
+  		},
+		body: JSON.stringify(updateData)
+	};
+
+	const response = await fetch(`${API_FULL_STR}/carts/`,options);
+	const data = await response.json();
+	// console.log("updateCartItem...return data",data);
+	return data;
 }
 
 /**
@@ -90,6 +182,13 @@ async function updateCartItem(cartId, quantity) {
 async function removeCartItem(cartId) {
 	// 請實作此函式
 	// 提示：發送 DELETE 請求到 /carts/{id}
+	const options = {
+		method: "DELETE"
+	};
+	const response = await fetch(`${API_FULL_STR}/carts/${cartId}`,options);
+	const data = await response.json();
+	console.log("This is removeCartItem data.carts:",data);
+	return data.carts;
 }
 
 /**
@@ -99,6 +198,12 @@ async function removeCartItem(cartId) {
 async function clearCart() {
 	// 請實作此函式
 	// 提示：發送 DELETE 請求到 /carts
+	const response = await fetch(`${API_FULL_STR}/carts`,{
+		method: "DELETE"
+	});
+	const data = await response.json();
+	console.log("clearCart():",data);
+	return data;
 }
 
 // ========================================
@@ -110,12 +215,23 @@ async function clearCart() {
 
 1. HTTP 狀態碼的分類（1xx, 2xx, 3xx, 4xx, 5xx 各代表什麼）
    答：
+   1xx: (100-199) 中間性質的回應，往往表示此請求尚未完成，伺服器端仍有後續處理作業中。
+   2xx: (200-299) 成功回應，200 = OK; 201 = Created; 202 = Accepted。
+   3xx: (300-399) 重新導向。
+   4xx: (400-499) 用戶端錯誤，常見的有 400 = Bed Request，請求語法格式錯誤、無效的請求訊息框架；404 = 表示伺服器找不到所請求的資源。
+   5xx: (500-599) 伺服端錯誤，常見的有 500 = Internal Server Error，該錯誤是一種通用的回應，表示伺服器找不到更適當的 5XX 錯誤來回應請求。
 
 2. GET、POST、PATCH、PUT、DELETE 的差異
    答：
+   > GET:單純向伺服器索取資料，參數通常放在 URL 的 Query String 中（如 ?id=1）。
+   > POST:將新的資料傳送給伺服器，伺服器會依此建立新資源。
+   > PATCH:傳送資料以局部修改指定的現有資源（只更新部分欄位）
+   > PUT:傳送資料以完整替換指定的現有資源。
+   > DELETE:告訴伺服器刪除指定的資源（目標通常寫在 URL 網址路徑中）。
+
 
 3. 什麼是 RESTful API？
-   答：
+   答：RESTful API 的核心精神是，透過網址路徑表達「資源」，實際行為藉由 HTTP 的「方法」處理。
 
 
 */
